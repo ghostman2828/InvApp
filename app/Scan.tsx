@@ -1,12 +1,15 @@
 import { BarcodeScanningResult, CameraView, useCameraPermissions } from 'expo-camera';
 import { useRef, useState } from 'react';
-import { Alert, Button, Dimensions, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Button, Dimensions, StyleSheet, Text, TouchableOpacity, View, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 
 export default function ScanScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
   const [zoom, setZoom] = useState(0);
   const [scanned, setScanned] = useState(false);
+  const [currentItem, setCurrentItem] = useState<{barcode: string, quantity: number} | null>(null);
+  const [labelData, setLabelData] = useState<{name: string, price: string}>({name: '', price: ''});
+  const [screen, setScreen] = useState<'scan' | 'quantity' | 'label'>('scan');
 
   // Get screen dimensions
   const { width, height } = Dimensions.get('window');
@@ -28,12 +31,31 @@ export default function ScanScreen() {
   const handleBarcodeScanned = (scanningResult: BarcodeScanningResult) => {
     if (!scanned) {
       setScanned(true);
-      Alert.alert(
-        "Barcode Scanned",
-        `Type: ${scanningResult.type}\nData: ${scanningResult.data}`,
-        [{ text: "OK", onPress: () => setScanned(false) }]
-      );
+      // In a real app, you would fetch this data from your database
+      const mockQuantity = Math.floor(Math.random() * 100) + 1; // Random quantity for demo
+      setCurrentItem({
+        barcode: scanningResult.data,
+        quantity: mockQuantity
+      });
+      setScreen('quantity');
     }
+  };
+
+  const handlePrintLabel = () => {
+    setScreen('label');
+  };
+
+  const handleLabelSubmit = () => {
+    // Here you would typically send the label data to your printer
+    Alert.alert(
+      "Label Printed",
+      `Name: ${labelData.name}\nPrice: ${labelData.price}\nBarcode: ${currentItem?.barcode}`,
+      [{ text: "OK", onPress: () => {
+        setScanned(false);
+        setScreen('scan');
+        setLabelData({name: '', price: ''});
+      }}]
+    );
   };
 
   if (!permission) {
@@ -49,6 +71,84 @@ export default function ScanScreen() {
     );
   }
 
+  if (screen === 'quantity') {
+    return (
+      <View style={styles.container}>
+        <View style={styles.quantityContainer}>
+          <Text style={styles.quantityTitle}>Scanned Item</Text>
+          <Text style={styles.barcodeText}>Barcode: {currentItem?.barcode}</Text>
+          <Text style={styles.quantityText}>Current Quantity: {currentItem?.quantity}</Text>
+          
+          <TouchableOpacity 
+            style={styles.printButton}
+            onPress={handlePrintLabel}
+          >
+            <Text style={styles.printButtonText}>Print Label</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => {
+              setScanned(false);
+              setScreen('scan');
+            }}
+          >
+            <Text style={styles.backButtonText}>Scan Again</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  if (screen === 'label') {
+    return (
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.container}
+      >
+        <View style={styles.labelContainer}>
+          <Text style={styles.labelTitle}>Create New Label</Text>
+          <Text style={styles.barcodeText}>Barcode: {currentItem?.barcode}</Text>
+          
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>Item Name:</Text>
+            <TextInput
+              style={styles.input}
+              value={labelData.name}
+              onChangeText={(text) => setLabelData({...labelData, name: text})}
+              placeholder="Enter item name"
+            />
+          </View>
+          
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>Price:</Text>
+            <TextInput
+              style={styles.input}
+              value={labelData.price}
+              onChangeText={(text) => setLabelData({...labelData, price: text})}
+              placeholder="Enter price"
+              keyboardType="decimal-pad"
+            />
+          </View>
+          
+          <TouchableOpacity 
+            style={styles.submitButton}
+            onPress={handleLabelSubmit}
+          >
+            <Text style={styles.submitButtonText}>Print Label</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => setScreen('quantity')}
+          >
+            <Text style={styles.backButtonText}>Back</Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <CameraView 
@@ -57,11 +157,10 @@ export default function ScanScreen() {
         facing="back"
         zoom={zoom}
         barcodeScannerSettings={{
-          barcodeTypes: ['ean13', 'upc_a', 'code128', 'qr'] // Common barcode types
+          barcodeTypes: ['ean13', 'upc_a', 'code128', 'qr']
         }}
         onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
       >
-        {/* Your existing overlay and controls remain exactly the same */}
         <View style={styles.overlay}>
           <View style={[styles.unfocusedArea, { height: (height - rectangleHeight) / 2 }]} />
           <View style={styles.middleRow}>
@@ -98,11 +197,11 @@ export default function ScanScreen() {
   );
 }
 
-// Your existing styles remain exactly the same
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'center',
+    backgroundColor: '#f5f5f5',
   },
   message: {
     textAlign: 'center',
@@ -186,6 +285,97 @@ const styles = StyleSheet.create({
   zoomText: {
     color: 'white',
     fontSize: 24,
+    fontWeight: 'bold',
+  },
+  quantityContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: 20,
+    backgroundColor: '#fff',
+  },
+  quantityTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 30,
+    color: '#333',
+  },
+  barcodeText: {
+    fontSize: 18,
+    textAlign: 'center',
+    marginBottom: 20,
+    color: '#555',
+  },
+  quantityText: {
+    fontSize: 22,
+    textAlign: 'center',
+    marginBottom: 40,
+    color: '#333',
+    fontWeight: 'bold',
+  },
+  printButton: {
+    backgroundColor: '#4CAF50',
+    padding: 15,
+    borderRadius: 8,
+    marginBottom: 15,
+  },
+  printButtonText: {
+    color: 'white',
+    textAlign: 'center',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  backButton: {
+    backgroundColor: '#f44336',
+    padding: 15,
+    borderRadius: 8,
+  },
+  backButtonText: {
+    color: 'white',
+    textAlign: 'center',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  labelContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: 20,
+    backgroundColor: '#fff',
+  },
+  labelTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 30,
+    color: '#333',
+  },
+  inputContainer: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 16,
+    marginBottom: 8,
+    color: '#555',
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    backgroundColor: '#f9f9f9',
+  },
+  submitButton: {
+    backgroundColor: '#2196F3',
+    padding: 15,
+    borderRadius: 8,
+    marginTop: 10,
+    marginBottom: 15,
+  },
+  submitButtonText: {
+    color: 'white',
+    textAlign: 'center',
+    fontSize: 18,
     fontWeight: 'bold',
   },
 });
